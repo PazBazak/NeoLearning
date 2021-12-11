@@ -14,14 +14,14 @@ class BaseTest(BoaTest):
         cls = type(self)
         cls.contract_path = self.get_contract_path(NEO_CONTRACTS_DIR_PATH, contract)
 
-    # @pytest.fixture(autouse=True)
-    # def setup(self):
-    #     self.engine = TestEngine()
-    #
-    # def invoke(self, method: str):
-    #     """
-    #     Invokes contract method
-    #     :param method: The contract method name
-    #     :return: The returned value from contract.
-    #     """
-    #     return self.engine.run(self.compiled_contract_path, method)
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        self.engine = TestEngine()
+
+    def call_contract(self, method: str, *args, **kwargs):
+        """
+        Invokes contract method
+        :param method: The contract method name
+        :return: The returned value from contract.
+        """
+        return self.run_smart_contract(self.engine, self.contract_path, method, *args, **kwargs)
