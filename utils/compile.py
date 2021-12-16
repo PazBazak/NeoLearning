@@ -1,6 +1,6 @@
 from boa3.boa3 import Boa3
 
-CONTRACT_PATH = 'wrapped_gas.py'
+CONTRACT_PATH = '../NeoContracts/wrapped_gas.py'
 
 # todo - use click to create CLI
 

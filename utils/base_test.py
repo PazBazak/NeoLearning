@@ -9,6 +9,8 @@ class BaseTest(BoaTest):
     Base Test for testing smart contracts
     """
 
+    OWNER_SCRIPT_HASH = bytes(20)
+
     @pytest.fixture(scope='class', autouse=True)
     def setup_class(self, contract):
         cls = type(self)
@@ -18,10 +20,21 @@ class BaseTest(BoaTest):
     def setup(self):
         self.engine = TestEngine()
 
-    def call_contract(self, method: str, *args, **kwargs):
+    def deploy(self, signer=OWNER_SCRIPT_HASH):
+        """
+        Calls 'deploy' method of the given contract.
+        :param signer: Account that signed the deployment call
+        """
+        return self.call_method('deploy', signer_accounts=[signer])
+
+    def call_method(self, method: str, *args, **kwargs):
         """
         Invokes contract method
         :param method: The contract method name
         :return: The returned value from contract.
         """
-        return self.run_smart_contract(self.engine, self.contract_path, method, *args, **kwargs)
+        return self.run_smart_contract(
+            test_engine=self.engine,
+            smart_contract_path=self.contract_path,
+            method=method,
+            *args, **kwargs)
