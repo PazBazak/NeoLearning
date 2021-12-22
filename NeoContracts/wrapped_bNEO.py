@@ -3,7 +3,7 @@ from typing import Any, Union
 from boa3.builtin import CreateNewEvent, NeoMetadata, metadata, public
 from boa3.builtin.contract import Nep17TransferEvent, abort
 from boa3.builtin.interop.blockchain import get_contract
-from boa3.builtin.interop.contract import GAS, call_contract
+from boa3.builtin.interop.contract import NEO, call_contract
 from boa3.builtin.interop.runtime import calling_script_hash, check_witness, executing_script_hash
 from boa3.builtin.interop.storage import delete, get, put
 from boa3.builtin.type import UInt160
@@ -11,7 +11,6 @@ from boa3.builtin.type import UInt160
 __author__ = 'Paz Bazak'
 
 
-# todo - start
 # -------------------------------------------
 # METADATA
 # -------------------------------------------
@@ -23,9 +22,9 @@ def manifest_metadata() -> NeoMetadata:
     """
     meta = NeoMetadata()
     meta.supported_standards = ['NEP-17']
-    meta.author = "Paz B"
-    meta.description = "Wrapped GAS Example"
-    meta.email = "test@gmail.com"
+    meta.author = "Anon"
+    meta.description = "Wrapped bNEO, automating the process of re-investing GAS to buy more NEO!"
+    meta.email = "anon@gmail.com"
     return meta
 
 
@@ -35,20 +34,20 @@ def manifest_metadata() -> NeoMetadata:
 
 
 # Script hash of the contract owner
-OWNER = UInt160()  # todo
+OWNER = UInt160()  # todo - should I put my own address?
 SUPPLY_KEY = 'totalSupply'
 
 # Symbol of the Token
-TOKEN_SYMBOL = 'zGAS'
+TOKEN_SYMBOL = 'aNEO'
 
 # Number of decimal places
 TOKEN_DECIMALS = 8
 
 # Total Supply of tokens in the system
-TOKEN_TOTAL_SUPPLY = 10_000_000 * 100_000_000  # 10m total supply * 10^8 (decimals)
+TOKEN_TOTAL_SUPPLY = 100_000_000 * 100_000_000  # 100m total supply * 10^8 (decimals)
 
 # Allowance
-ALLOWANCE_PREFIX = b'allowance'  # todo
+ALLOWANCE_PREFIX = b'allowance'
 
 # -------------------------------------------
 # Events
@@ -103,8 +102,8 @@ def totalSupply() -> int:
     """
     Gets the total token supply deployed in the system.
 
-    This number must not be in its user representation. E.g. if the total supply is 10,000,000 tokens, this method
-    must return 10,000,000 * 10 ^ decimals.
+    This number must not be in its user representation. E.g. if the total supply is 100,000,000 tokens, this method
+    must return 100,000,000 * 10 ^ decimals.
 
     :return: the total token supply deployed in the system.
     """
@@ -159,7 +158,7 @@ def transfer(from_address: UInt160, to_address: UInt160, amount: int, data: Any)
     # If so, the transfer should be processed;
     # If not, the function should use the check_witness to verify the transfer.
     if from_address != calling_script_hash:
-        if not check_witness(from_address):  # todo
+        if not check_witness(from_address):
             return False
 
     # skip balance changes if transferring to yourself or transferring 0 cryptocurrency
@@ -183,7 +182,7 @@ def transfer(from_address: UInt160, to_address: UInt160, amount: int, data: Any)
 @public
 def transfer_from(spender: UInt160, from_address: UInt160, to_address: UInt160, amount: int, data: Any) -> bool:
     """
-    A spender transfers an amount of zGAS tokens allowed from one account to another.
+    A spender transfers an amount of aNEO tokens allowed from one account to another.
 
     If the method succeeds, it must fire the `Transfer` event and must return true, even if the amount is 0,
     or from and to are the same address.
@@ -222,7 +221,7 @@ def transfer_from(spender: UInt160, from_address: UInt160, to_address: UInt160, 
     # If so, the transfer should be processed;
     # If not, the function should use the check_witness to verify the transfer.
     if spender != calling_script_hash:
-        if not check_witness(spender):  # todo
+        if not check_witness(spender):
             return False
 
     if allowed == amount:
@@ -260,7 +259,6 @@ def approve(spender: UInt160, amount: int) -> bool:
     :type amount: int
     :raise AssertionError: raised if `from_address` length is not 20 or if `amount` if less than zero.
     """
-    # todo
     assert len(spender) == 20
     assert amount >= 0
 
@@ -274,9 +272,9 @@ def approve(spender: UInt160, amount: int) -> bool:
 @public
 def allowance(owner: UInt160, spender: UInt160) -> int:
     """
-    Gets the amount of zGAS from the owner that can be used by the spender.
+    Gets the amount of aNEO from the owner that can be used by the spender.
 
-    :param owner: the address that allowed the spender to spend zGAS
+    :param owner: the address that allowed the spender to spend aNEO
     :type owner: UInt160
     :param spender: the address that can spend zGAS from the owner's account
     :type spender: UInt160
@@ -300,7 +298,7 @@ def post_transfer(from_address: Union[UInt160, None], to_address: Union[UInt160,
     :param call_onPayment: whether onPayment should be called or not
     :type call_onPayment: bool
     """
-    # todo
+    # todo - understand
     if call_onPayment:
         if not isinstance(to_address, None):  # TODO: change to 'is not None' when `is` semantic is implemented
             contract = get_contract(to_address)
@@ -310,7 +308,7 @@ def post_transfer(from_address: Union[UInt160, None], to_address: Union[UInt160,
 
 def mint(account: UInt160, amount: int):
     """
-    Mints new zGAS tokens.
+    Mints new aNEO tokens.
 
     :param account: the address of the account that is sending cryptocurrency to this contract
     :type account: UInt160
@@ -327,7 +325,7 @@ def mint(account: UInt160, amount: int):
         put(account, account_balance + amount)
 
         on_transfer(None, account, amount)
-        post_transfer(None, account, amount, None, True)
+        post_transfer(None, account, amount, None, True)  # todo
 
 
 @public
@@ -359,9 +357,9 @@ def burn(account: UInt160, amount: int):
                 put(account, account_balance - amount)
 
             on_transfer(account, None, amount)
-            post_transfer(account, None, amount, None, False)
+            post_transfer(account, None, amount, None, False)  # todo
 
-            call_contract(GAS, 'transfer', [executing_script_hash, account, amount, None])
+            call_contract(NEO, 'transfer', [executing_script_hash, account, amount, None])  # todo - replace with bNEO
 
 
 @public
@@ -384,7 +382,7 @@ def deploy() -> bool:
 
     :return: whether the deploy was successful. This method must return True only during the smart contract's deploy.
     """
-    if not check_witness(OWNER):  # todo
+    if not check_witness(OWNER):
         return False
 
     if get(SUPPLY_KEY).to_int() > 0:
@@ -409,8 +407,8 @@ def onNEP17Payment(from_address: UInt160, amount: int, data: Any):
     :param data: any pertinent data that might validate the transaction
     :type data: Any
     """
-    # Use calling_script_hash to identify if the incoming token is GAS
-    if calling_script_hash == GAS:
+    # Use calling_script_hash to identify if the incoming token is bNEO
+    if calling_script_hash == NEO:  # todo - replace with bNEO
         mint(from_address, amount)
     else:
         abort()

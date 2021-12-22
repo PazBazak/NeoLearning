@@ -34,7 +34,7 @@ class BaseTest(BoaTest):
         :return: The returned value from contract.
         """
         return self.run_smart_contract(
-            test_engine=self.engine,
-            smart_contract_path=self.contract_path,
-            method=method,
+            self.engine,
+            self.contract_path,
+            method,
             *args, **kwargs)

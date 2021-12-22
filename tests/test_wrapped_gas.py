@@ -8,8 +8,10 @@ from boa3_test.tests.test_classes.testengine import TestEngine
 from utils.base_test import BaseTest
 
 DECIMALS = 8
+DECIMALS_MULTIPLIER = 10 ** DECIMALS
+
 SYMBOL = 'zGAS'
-TOTAL_SUPPLY = 10_000_000 * 10 ** 8
+TOTAL_SUPPLY = 10_000_000 * DECIMALS_MULTIPLIER
 
 
 # todo - add docs
@@ -35,45 +37,41 @@ class TestWrappedGas(BaseTest):
         self.assertEqual(False, self.deploy(signer=self.OTHER_ACCOUNT_1))
 
     def test_deploy(self):
-        # owner is a signer, should return ture and deploy the contract
+        # owner is a signer, should return True and deploy the contract
         self.assertEqual(True, self.deploy())
 
-        # must always return false after first execution
+        # must always return False  after first execution
         self.assertEqual(False, self.deploy())
 
     def test_total_supply(self):
-        self.assertEqual(self.call_method('totalSupply'), 0)
+        self.assertEqual(0, self.call_method('totalSupply'))
 
         self.deploy()
 
-        self.assertEqual(self.call_method('totalSupply'), TOTAL_SUPPLY)
+        self.assertEqual(TOTAL_SUPPLY, self.call_method('totalSupply'))
 
     def test_total_balance_of(self):
-        total_supply = 10_000_000 * 10 ** 8
+        self.assertEqual(0, self.call_method('balanceOf', self.OWNER_SCRIPT_HASH))
 
-        result = self.run_smart_contract(self.engine, self.contract_path, 'balanceOf', self.OWNER_SCRIPT_HASH)
-        self.assertEqual(0, result)
+        self.deploy()
 
-        result = self.run_smart_contract(self.engine, self.contract_path, 'deploy',
-                                         signer_accounts=[self.OWNER_SCRIPT_HASH],
-                                         expected_result_type=bool)
-        self.assertEqual(True, result)
+        self.assertEqual(TOTAL_SUPPLY, self.call_method('balanceOf', self.OWNER_SCRIPT_HASH))
 
-        result = self.run_smart_contract(self.engine, self.contract_path, 'balanceOf', self.OWNER_SCRIPT_HASH)
-        self.assertEqual(total_supply, result)
-
+    def test_validate_balance_of_input(self):
         # should fail when the script length is not 20
         with self.assertRaises(TestExecutionException, msg=self.ASSERT_RESULTED_FALSE_MSG):
-            self.run_smart_contract(self.engine, self.contract_path, 'balanceOf', bytes(10))
+            self.call_method('balanceOf', bytes(19))
+
         with self.assertRaises(TestExecutionException, msg=self.ASSERT_RESULTED_FALSE_MSG):
-            self.run_smart_contract(self.engine, self.contract_path, 'balanceOf', bytes(30))
+            self.call_method('balanceOf', bytes(21))
 
     def test_wrapped_neo_total_transfer(self):
-        transferred_amount = 10 * 10 ** 8  # 10 tokens
+        transferred_amount = 10 * DECIMALS_MULTIPLIER  # 10 tokens
 
         output, manifest = self.compile_and_save(self.contract_path)
-        wrapped_neo_address = hash160(output)
+        wrapped_gas_address = hash160(output)
 
+        # todo - continue
         # should fail before running deploy
         result = self.run_smart_contract(self.engine, self.contract_path, 'transfer',
                                          self.OWNER_SCRIPT_HASH, self.OTHER_ACCOUNT_1, transferred_amount, "",
@@ -85,7 +83,7 @@ class TestWrappedGas(BaseTest):
                                          expected_result_type=bool)
         self.assertEqual(True, result)
         # when deploying, the contract will mint tokens to the owner
-        transfer_events = self.engine.get_events('Transfer', origin=wrapped_neo_address)
+        transfer_events = self.engine.get_events('Transfer', origin=wrapped_gas_address)
         self.assertEqual(1, len(transfer_events))
         self.assertEqual(3, len(transfer_events[0].arguments))
 
@@ -131,7 +129,7 @@ class TestWrappedGas(BaseTest):
                                          signer_accounts=[self.OWNER_SCRIPT_HASH],
                                          expected_result_type=bool)
         self.assertEqual(True, result)
-        transfer_events = self.engine.get_events('Transfer', origin=wrapped_neo_address)
+        transfer_events = self.engine.get_events('Transfer', origin=wrapped_gas_address)
         self.assertEqual(2, len(transfer_events))
         self.assertEqual(3, len(transfer_events[1].arguments))
 
@@ -533,7 +531,7 @@ class TestWrappedGas(BaseTest):
             self.run_smart_contract(self.engine, self.contract_path, 'transfer_from',
                                     self.OTHER_ACCOUNT_1, self.OWNER_SCRIPT_HASH, self.OTHER_ACCOUNT_2, -10, None)
 
-    def test_wrapped_neo_onNEP17Payment(self):
+    def test_wrapped_gas_onNEP17Payment(self):
         self.engine.add_contract(self.contract_path.replace('.py', '.nef'))
 
         aux_path = self.get_contract_path('examples/auxiliary_contracts', 'auxiliary_contract.py')
