@@ -45,7 +45,7 @@ TOKEN_DECIMALS = 8
 TOKEN_TOTAL_SUPPLY = 10_000_000 * 100_000_000  # 10m total supply * 10^8 (decimals)
 
 # Allowance
-ALLOWANCE_PREFIX = b'allowance'  # todo
+ALLOWANCE_PREFIX = b'allowance'
 
 # -------------------------------------------
 # Events
