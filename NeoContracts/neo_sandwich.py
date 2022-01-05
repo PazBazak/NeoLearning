@@ -3,7 +3,7 @@ from typing import Any, Union
 from boa3.builtin import CreateNewEvent, NeoMetadata, metadata, public
 from boa3.builtin.contract import Nep17TransferEvent, abort
 from boa3.builtin.interop.blockchain import get_contract
-from boa3.builtin.interop.contract import GAS, call_contract
+from boa3.builtin.interop.contract import GAS, NEO, call_contract
 from boa3.builtin.interop.runtime import calling_script_hash, check_witness, executing_script_hash
 from boa3.builtin.interop.storage import delete, get, put
 from boa3.builtin.type import UInt160
@@ -20,9 +20,9 @@ def manifest_metadata() -> NeoMetadata:
     """
     meta = NeoMetadata()
     meta.supported_standards = ['NEP-17']
-    meta.author = "Paz B"
-    meta.description = "Wrapped GAS Example"
-    meta.email = "test@gmail.com"
+    meta.author = "Neo Sandwich"
+    meta.description = "Convert your BurgerNEO to SandwichNEO for earning more bNEO instead of GAS!"
+    meta.email = ""
     return meta
 
 
@@ -32,17 +32,22 @@ def manifest_metadata() -> NeoMetadata:
 
 
 # Script hash of the contract owner
-OWNER = UInt160()
+OWNER = UInt160()  # todo - fill
+
+# Total supply storage key
 SUPPLY_KEY = 'totalSupply'
 
 # Symbol of the Token
-TOKEN_SYMBOL = 'zGAS'
+TOKEN_SYMBOL = 'sNEO'
 
 # Number of decimal places
 TOKEN_DECIMALS = 8
 
+# Multiply with this value to get actual token amount (non-user representation)
+DECIMAL_MULTIPLIER = 10 ** TOKEN_DECIMALS
+
 # Total Supply of tokens in the system
-TOKEN_TOTAL_SUPPLY = 10_000_000 * 100_000_000  # 10m total supply * 10^8 (decimals)
+TOKEN_TOTAL_SUPPLY = 0
 
 # Allowance
 ALLOWANCE_PREFIX = b'allowance'
@@ -69,14 +74,28 @@ on_approval = CreateNewEvent(
 
 
 @public
+def deploy() -> bool:
+    """
+    Initializes the storage when the smart contract is deployed.
+
+    :return: whether the deploy was successful. This method must return True only during the smart contract's deploy.
+    """
+    if not check_witness(OWNER):
+        return False
+
+    if get(SUPPLY_KEY).to_int() > 0:
+        return False
+
+    return True
+
+
+@public
 def symbol() -> str:
     """
     Gets the symbols of the token.
-
     This string must be valid ASCII, must not contain whitespace or control characters, should be limited to uppercase
     Latin alphabet (i.e. the 26 letters used in English) and should be short (3-8 characters is recommended).
     This method must always return the same value every time it is invoked.
-
     :return: a short string representing symbol of the token managed in this contract.
     """
     return TOKEN_SYMBOL
@@ -86,10 +105,8 @@ def symbol() -> str:
 def decimals() -> int:
     """
     Gets the amount of decimals used by the token.
-
     E.g. 8, means to divide the token amount by 100,000,000 (10 ^ 8) to get its user representation.
     This method must always return the same value every time it is invoked.
-
     :return: the number of decimals used by the token.
     """
     return TOKEN_DECIMALS
@@ -99,10 +116,8 @@ def decimals() -> int:
 def totalSupply() -> int:
     """
     Gets the total token supply deployed in the system.
-
     This number must not be in its user representation. E.g. if the total supply is 10,000,000 tokens, this method
     must return 10,000,000 * 10 ^ decimals.
-
     :return: the total token supply deployed in the system.
     """
     return get(SUPPLY_KEY).to_int()
@@ -111,12 +126,10 @@ def totalSupply() -> int:
 @public
 def balanceOf(account: UInt160) -> int:
     """
-    Get the current balance of an address.
-
+    Get the current balance of an address
     The parameter account must be a 20-byte address represented by a UInt160.
-
     :param account: the account address to retrieve the balance for
-    :type account: bytes
+    :type account: UInt160
     """
     assert len(account) == 20
     return get(account).to_int()
@@ -125,20 +138,18 @@ def balanceOf(account: UInt160) -> int:
 @public
 def transfer(from_address: UInt160, to_address: UInt160, amount: int, data: Any) -> bool:
     """
-    Transfers an amount of zGAS tokens from one account to another.
+    Transfers an amount of sNEO tokens from one account to another.
 
     If the method succeeds, it must fire the `Transfer` event and must return true, even if the amount is 0,
     or from and to are the same address.
-
     :param from_address: the address to transfer from
     :type from_address: UInt160
     :param to_address: the address to transfer to
     :type to_address: UInt160
-    :param amount: the amount of zGAS tokens to transfer
+    :param amount: the amount of sNEO tokens to transfer
     :type amount: int
     :param data: whatever data is pertinent to the onPayment method
     :type data: Any
-
     :return: whether the transfer was successful
     :raise AssertionError: raised if `from_address` or `to_address` length is not 20 or if `amount` is less than zero.
     """
@@ -172,7 +183,7 @@ def transfer(from_address: UInt160, to_address: UInt160, amount: int, data: Any)
     # if the method succeeds, it must fire the transfer event
     on_transfer(from_address, to_address, amount)
     # if the to_address is a smart contract, it must call the contracts onPayment
-    post_transfer(from_address, to_address, amount, data, True)  # todo
+    post_transfer(from_address, to_address, amount, data, True)
     # and then it must return true
     return True
 
@@ -180,24 +191,24 @@ def transfer(from_address: UInt160, to_address: UInt160, amount: int, data: Any)
 @public
 def transfer_from(spender: UInt160, from_address: UInt160, to_address: UInt160, amount: int, data: Any) -> bool:
     """
-    A spender transfers an amount of zGAS tokens allowed from one account to another.
+    A spender transfers an amount of zNEO tokens allowed from one account to another.
 
     If the method succeeds, it must fire the `Transfer` event and must return true, even if the amount is 0,
     or from and to are the same address.
 
-    :param spender: the address that is trying to transfer zGAS tokens
+    :param spender: the address that is trying to transfer zNEO tokens
     :type spender: UInt160
     :param from_address: the address to transfer from
     :type from_address: UInt160
     :param to_address: the address to transfer to
     :type to_address: UInt160
-    :param amount: the amount of zGAS tokens to transfer
+    :param amount: the amount of zNEO tokens to transfer
     :type amount: int
     :param data: whatever data is pertinent to the onPayment method
     :type data: Any
 
     :return: whether the transfer was successful
-    :raise AssertionError: raised if `spender`, `from_address` or `to_address` length is not 20 or if `amount` if less
+    :raise AssertionError: raised if `spender`, `from_address` or `to_address` length is not 20 or if `amount` is less
     than zero.
     """
     # the parameters from and to should be 20-byte addresses. If not, this method should throw an exception.
@@ -240,7 +251,7 @@ def transfer_from(spender: UInt160, from_address: UInt160, to_address: UInt160, 
     # if the method succeeds, it must fire the transfer event
     on_transfer(from_address, to_address, amount)
     # if the to_address is a smart contract, it must call the contracts onPayment
-    post_transfer(from_address, to_address, amount, data, True)  # todo
+    post_transfer(from_address, to_address, amount, data, True)
     # and then it must return true
     return True
 
@@ -251,13 +262,12 @@ def approve(spender: UInt160, amount: int) -> bool:
     Allows spender to spend from your account as many times as they want until it reaches the amount allowed.
     The allowed amount will be overwritten if this method is called once more.
 
-    :param spender: the address that will be allowed to use your zGAS
+    :param spender: the address that will be allowed to use your zNEO
     :type spender: UInt160
-    :param amount: the total amount of zGAS that the spender can spent
+    :param amount: the total amount of zNEO that the spender can spent
     :type amount: int
     :raise AssertionError: raised if `from_address` length is not 20 or if `amount` if less than zero.
     """
-    # todo
     assert len(spender) == 20
     assert amount >= 0
 
@@ -271,17 +281,18 @@ def approve(spender: UInt160, amount: int) -> bool:
 @public
 def allowance(owner: UInt160, spender: UInt160) -> int:
     """
-    Gets the amount of zGAS from the owner that can be used by the spender.
+    Gets the amount of zNEO from the owner that can be used by the spender.
 
-    :param owner: the address that allowed the spender to spend zGAS
+    :param owner: the address that allowed the spender to spend zNEO
     :type owner: UInt160
-    :param spender: the address that can spend zGAS from the owner's account
+    :param spender: the address that can spend zNEO from the owner's account
     :type spender: UInt160
     """
     return get(ALLOWANCE_PREFIX + owner + spender).to_int()
 
 
-def post_transfer(from_address: Union[UInt160, None], to_address: Union[UInt160, None], amount: int, data: Any, call_onPayment: bool):
+def post_transfer(from_address: Union[UInt160, None], to_address: Union[UInt160, None], amount: int, data: Any,
+                  call_onPayment: bool):
     """
     Checks if the one receiving NEP17 tokens is a smart contract and if it's one the onPayment method will be called.
 
@@ -296,7 +307,6 @@ def post_transfer(from_address: Union[UInt160, None], to_address: Union[UInt160,
     :param call_onPayment: whether onPayment should be called or not
     :type call_onPayment: bool
     """
-    # todo
     if call_onPayment:
         if not isinstance(to_address, None):  # TODO: change to 'is not None' when `is` semantic is implemented
             contract = get_contract(to_address)
@@ -306,7 +316,7 @@ def post_transfer(from_address: Union[UInt160, None], to_address: Union[UInt160,
 
 def mint(account: UInt160, amount: int):
     """
-    Mints new zGAS tokens.
+    Mints new zNEO tokens.
 
     :param account: the address of the account that is sending cryptocurrency to this contract
     :type account: UInt160
@@ -329,14 +339,14 @@ def mint(account: UInt160, amount: int):
 @public
 def burn(account: UInt160, amount: int):
     """
-    Burns zGAS tokens.
+    Burns zNEO tokens.
 
     :param account: the address of the account that is pulling out cryptocurrency of this contract
     :type account: UInt160
     :param amount: the amount of gas to be refunded
     :type amount: int
     :raise AssertionError: raised if `account` length is not 20, amount is less than than 0 or the account doesn't have
-    enough zGAS to burn
+    enough zNEO to burn
     """
     assert len(account) == 20
     assert amount >= 0
@@ -357,7 +367,7 @@ def burn(account: UInt160, amount: int):
             on_transfer(account, None, amount)
             post_transfer(account, None, amount, None, False)
 
-            call_contract(GAS, 'transfer', [executing_script_hash, account, amount, None])
+            call_contract(NEO, 'transfer', [executing_script_hash, account, amount, None])
 
 
 @public
@@ -369,34 +379,13 @@ def verify() -> bool:
 
     :return: whether the transaction signature is correct
     """
-    # todo
     return check_witness(OWNER)
-
-
-@public
-def deploy() -> bool:
-    """
-    Initializes the storage when the smart contract is deployed.
-
-    :return: whether the deploy was successful. This method must return True only during the smart contract's deploy.
-    """
-    if not check_witness(OWNER):
-        return False
-
-    if get(SUPPLY_KEY).to_int() > 0:
-        return False
-
-    put(SUPPLY_KEY, TOKEN_TOTAL_SUPPLY)
-    put(OWNER, TOKEN_TOTAL_SUPPLY)  # todo
-
-    on_transfer(None, OWNER, TOKEN_TOTAL_SUPPLY)
-    return True
 
 
 @public
 def onNEP17Payment(from_address: UInt160, amount: int, data: Any):
     """
-    If this smart contract receives GAS, it will mint an amount of wrapped GAS
+    If this smart contract receives NEO, it will mint an amount of wrapped NEO
 
     :param from_address: the address of the one who is trying to send cryptocurrency to this smart contract
     :type from_address: UInt160
@@ -405,8 +394,11 @@ def onNEP17Payment(from_address: UInt160, amount: int, data: Any):
     :param data: any pertinent data that might validate the transaction
     :type data: Any
     """
-    # Use calling_script_hash to identify if the incoming token is GAS
-    if calling_script_hash == GAS:
+    # Use calling_script_hash to identify if the incoming token is NEO
+    if calling_script_hash == NEO:
         mint(from_address, amount)
+    elif calling_script_hash == GAS:
+        # GAS is minted when transferring NEO
+        return
     else:
         abort()
