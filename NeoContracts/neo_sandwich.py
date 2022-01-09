@@ -3,15 +3,15 @@ from typing import Any, Union
 from boa3.builtin import CreateNewEvent, NeoMetadata, metadata, public
 from boa3.builtin.contract import Nep17TransferEvent, abort
 from boa3.builtin.interop.blockchain import get_contract
-from boa3.builtin.interop.contract import GAS, NEO, call_contract
+from boa3.builtin.interop.contract import NEO, GAS, call_contract
 from boa3.builtin.interop.runtime import calling_script_hash, check_witness, executing_script_hash
 from boa3.builtin.interop.storage import delete, get, put
 from boa3.builtin.type import UInt160
 
 
-# -------------------------------------------
-# METADATA
-# -------------------------------------------
+# todo - re-write docs
+# todo - review code
+
 
 @metadata
 def manifest_metadata() -> NeoMetadata:
@@ -26,10 +26,7 @@ def manifest_metadata() -> NeoMetadata:
     return meta
 
 
-# -------------------------------------------
-# TOKEN SETTINGS
-# -------------------------------------------
-
+bNEO = UInt160(0x48c40d4666f93408be1bef038b6722404d9a4c2a)
 
 # Script hash of the contract owner
 OWNER = UInt160()  # todo - fill
@@ -43,19 +40,8 @@ TOKEN_SYMBOL = 'sNEO'
 # Number of decimal places
 TOKEN_DECIMALS = 8
 
-# Multiply with this value to get actual token amount (non-user representation)
-DECIMAL_MULTIPLIER = 10 ** TOKEN_DECIMALS
-
-# Total Supply of tokens in the system
-TOKEN_TOTAL_SUPPLY = 0
-
 # Allowance
 ALLOWANCE_PREFIX = b'allowance'
-
-# -------------------------------------------
-# Events
-# -------------------------------------------
-
 
 on_transfer = Nep17TransferEvent
 on_approval = CreateNewEvent(
@@ -66,11 +52,6 @@ on_approval = CreateNewEvent(
     ],
     'Approval'
 )
-
-
-# -------------------------------------------
-# Methods
-# -------------------------------------------
 
 
 @public
@@ -85,6 +66,9 @@ def deploy() -> bool:
 
     if get(SUPPLY_KEY).to_int() > 0:
         return False
+
+    put(SUPPLY_KEY, 0)
+    on_transfer(None, OWNER, 0)
 
     return True
 
@@ -191,18 +175,18 @@ def transfer(from_address: UInt160, to_address: UInt160, amount: int, data: Any)
 @public
 def transfer_from(spender: UInt160, from_address: UInt160, to_address: UInt160, amount: int, data: Any) -> bool:
     """
-    A spender transfers an amount of zNEO tokens allowed from one account to another.
+    A spender transfers an amount of sNEO tokens allowed from one account to another.
 
     If the method succeeds, it must fire the `Transfer` event and must return true, even if the amount is 0,
     or from and to are the same address.
 
-    :param spender: the address that is trying to transfer zNEO tokens
+    :param spender: the address that is trying to transfer sNEO tokens
     :type spender: UInt160
     :param from_address: the address to transfer from
     :type from_address: UInt160
     :param to_address: the address to transfer to
     :type to_address: UInt160
-    :param amount: the amount of zNEO tokens to transfer
+    :param amount: the amount of sNEO tokens to transfer
     :type amount: int
     :param data: whatever data is pertinent to the onPayment method
     :type data: Any
@@ -222,8 +206,8 @@ def transfer_from(spender: UInt160, from_address: UInt160, to_address: UInt160, 
         return False
 
     # The function MUST return false if the from account balance does not allow enough tokens to be spent by the spender.
-    allowed = allowance(from_address, spender)
-    if allowed < amount:
+    allowed_amount = allowance(from_address, spender)
+    if allowed_amount < amount:
         return False
 
     # The function should check whether the spender address equals the caller contract hash.
@@ -233,10 +217,10 @@ def transfer_from(spender: UInt160, from_address: UInt160, to_address: UInt160, 
         if not check_witness(spender):
             return False
 
-    if allowed == amount:
+    if allowed_amount == amount:
         delete(ALLOWANCE_PREFIX + from_address + spender)
     else:
-        put(ALLOWANCE_PREFIX + from_address + spender, allowed - amount)
+        put(ALLOWANCE_PREFIX + from_address + spender, allowed_amount - amount)
 
     # skip balance changes if transferring to yourself or transferring 0 cryptocurrency
     if from_address != to_address and amount != 0:
@@ -262,9 +246,9 @@ def approve(spender: UInt160, amount: int) -> bool:
     Allows spender to spend from your account as many times as they want until it reaches the amount allowed.
     The allowed amount will be overwritten if this method is called once more.
 
-    :param spender: the address that will be allowed to use your zNEO
+    :param spender: the address that will be allowed to use your sNEO
     :type spender: UInt160
-    :param amount: the total amount of zNEO that the spender can spent
+    :param amount: the total amount of sNEO that the spender can spent
     :type amount: int
     :raise AssertionError: raised if `from_address` length is not 20 or if `amount` if less than zero.
     """
@@ -281,11 +265,11 @@ def approve(spender: UInt160, amount: int) -> bool:
 @public
 def allowance(owner: UInt160, spender: UInt160) -> int:
     """
-    Gets the amount of zNEO from the owner that can be used by the spender.
+    Gets the amount of sNEO from the owner that can be used by the spender.
 
-    :param owner: the address that allowed the spender to spend zNEO
+    :param owner: the address that allowed the spender to spend sNEO
     :type owner: UInt160
-    :param spender: the address that can spend zNEO from the owner's account
+    :param spender: the address that can spend sNEO from the owner's account
     :type spender: UInt160
     """
     return get(ALLOWANCE_PREFIX + owner + spender).to_int()
@@ -316,7 +300,7 @@ def post_transfer(from_address: Union[UInt160, None], to_address: Union[UInt160,
 
 def mint(account: UInt160, amount: int):
     """
-    Mints new zNEO tokens.
+    Mints new sNEO tokens.
 
     :param account: the address of the account that is sending cryptocurrency to this contract
     :type account: UInt160
@@ -324,6 +308,7 @@ def mint(account: UInt160, amount: int):
     :type amount: int
     :raise AssertionError: raised if amount is less than than 0
     """
+    # todo - why not assert amount > 0?
     assert amount >= 0
     if amount != 0:
         current_total_supply = totalSupply()
@@ -339,14 +324,14 @@ def mint(account: UInt160, amount: int):
 @public
 def burn(account: UInt160, amount: int):
     """
-    Burns zNEO tokens.
+    Burns sNEO tokens.
 
     :param account: the address of the account that is pulling out cryptocurrency of this contract
     :type account: UInt160
     :param amount: the amount of gas to be refunded
     :type amount: int
     :raise AssertionError: raised if `account` length is not 20, amount is less than than 0 or the account doesn't have
-    enough zNEO to burn
+    enough sNEO to burn
     """
     assert len(account) == 20
     assert amount >= 0
@@ -365,9 +350,8 @@ def burn(account: UInt160, amount: int):
                 put(account, account_balance - amount)
 
             on_transfer(account, None, amount)
-            post_transfer(account, None, amount, None, False)
 
-            call_contract(NEO, 'transfer', [executing_script_hash, account, amount, None])
+            call_contract(NEO, 'transfer', [executing_script_hash, account, amount, None])  # todo - fully understand
 
 
 @public
@@ -394,11 +378,15 @@ def onNEP17Payment(from_address: UInt160, amount: int, data: Any):
     :param data: any pertinent data that might validate the transaction
     :type data: Any
     """
-    # Use calling_script_hash to identify if the incoming token is NEO
-    if calling_script_hash == NEO:
-        mint(from_address, amount)
+    if calling_script_hash == bNEO:
+        if get(SUPPLY_KEY).to_int() > 0:
+            # calculate ratio
+            mint(from_address, amount)
+        else:
+            mint(from_address, amount)
+
     elif calling_script_hash == GAS:
-        # GAS is minted when transferring NEO
-        return
+        # todo - withdraw the bNEO
+        pass
     else:
         abort()
