@@ -34,24 +34,16 @@ OWNER = UInt160()  # todo - fill
 # Total supply storage key
 SUPPLY_KEY = 'totalSupply'
 
+BURGER_SUPPLY_KEY = 'burgerSupply'
+DENOMINATOR_KEY = 'denominator'
+
 # Symbol of the Token
 TOKEN_SYMBOL = 'sNEO'
 
 # Number of decimal places
 TOKEN_DECIMALS = 8
 
-# Allowance
-ALLOWANCE_PREFIX = b'allowance'
-
 on_transfer = Nep17TransferEvent
-on_approval = CreateNewEvent(
-    [
-        ('owner', UInt160),
-        ('spender', UInt160),
-        ('amount', int)
-    ],
-    'Approval'
-)
 
 
 @public
@@ -105,6 +97,11 @@ def totalSupply() -> int:
     :return: the total token supply deployed in the system.
     """
     return get(SUPPLY_KEY).to_int()
+
+
+@public
+def burgerSupply() -> int:
+    return get(BURGER_SUPPLY_KEY).to_int()
 
 
 @public
@@ -172,109 +169,6 @@ def transfer(from_address: UInt160, to_address: UInt160, amount: int, data: Any)
     return True
 
 
-@public
-def transfer_from(spender: UInt160, from_address: UInt160, to_address: UInt160, amount: int, data: Any) -> bool:
-    """
-    A spender transfers an amount of sNEO tokens allowed from one account to another.
-
-    If the method succeeds, it must fire the `Transfer` event and must return true, even if the amount is 0,
-    or from and to are the same address.
-
-    :param spender: the address that is trying to transfer sNEO tokens
-    :type spender: UInt160
-    :param from_address: the address to transfer from
-    :type from_address: UInt160
-    :param to_address: the address to transfer to
-    :type to_address: UInt160
-    :param amount: the amount of sNEO tokens to transfer
-    :type amount: int
-    :param data: whatever data is pertinent to the onPayment method
-    :type data: Any
-
-    :return: whether the transfer was successful
-    :raise AssertionError: raised if `spender`, `from_address` or `to_address` length is not 20 or if `amount` is less
-    than zero.
-    """
-    # the parameters from and to should be 20-byte addresses. If not, this method should throw an exception.
-    assert len(spender) == 20 and len(from_address) == 20 and len(to_address) == 20
-    # the parameter amount must be greater than or equal to 0. If not, this method should throw an exception.
-    assert amount >= 0
-
-    # The function MUST return false if the from account balance does not have enough tokens to spend.
-    from_balance = get(from_address).to_int()
-    if from_balance < amount:
-        return False
-
-    # The function MUST return false if the from account balance does not allow enough tokens to be spent by the spender.
-    allowed_amount = allowance(from_address, spender)
-    if allowed_amount < amount:
-        return False
-
-    # The function should check whether the spender address equals the caller contract hash.
-    # If so, the transfer should be processed;
-    # If not, the function should use the check_witness to verify the transfer.
-    if spender != calling_script_hash:
-        if not check_witness(spender):
-            return False
-
-    if allowed_amount == amount:
-        delete(ALLOWANCE_PREFIX + from_address + spender)
-    else:
-        put(ALLOWANCE_PREFIX + from_address + spender, allowed_amount - amount)
-
-    # skip balance changes if transferring to yourself or transferring 0 cryptocurrency
-    if from_address != to_address and amount != 0:
-        if from_balance == amount:
-            delete(from_address)
-        else:
-            put(from_address, from_balance - amount)
-
-        to_balance = get(to_address).to_int()
-        put(to_address, to_balance + amount)
-
-    # if the method succeeds, it must fire the transfer event
-    on_transfer(from_address, to_address, amount)
-    # if the to_address is a smart contract, it must call the contracts onPayment
-    post_transfer(from_address, to_address, amount, data, True)
-    # and then it must return true
-    return True
-
-
-@public
-def approve(spender: UInt160, amount: int) -> bool:
-    """
-    Allows spender to spend from your account as many times as they want until it reaches the amount allowed.
-    The allowed amount will be overwritten if this method is called once more.
-
-    :param spender: the address that will be allowed to use your sNEO
-    :type spender: UInt160
-    :param amount: the total amount of sNEO that the spender can spent
-    :type amount: int
-    :raise AssertionError: raised if `from_address` length is not 20 or if `amount` if less than zero.
-    """
-    assert len(spender) == 20
-    assert amount >= 0
-
-    if balanceOf(calling_script_hash) >= amount:
-        put(ALLOWANCE_PREFIX + calling_script_hash + spender, amount)
-        on_approval(calling_script_hash, spender, amount)
-        return True
-    return False
-
-
-@public
-def allowance(owner: UInt160, spender: UInt160) -> int:
-    """
-    Gets the amount of sNEO from the owner that can be used by the spender.
-
-    :param owner: the address that allowed the spender to spend sNEO
-    :type owner: UInt160
-    :param spender: the address that can spend sNEO from the owner's account
-    :type spender: UInt160
-    """
-    return get(ALLOWANCE_PREFIX + owner + spender).to_int()
-
-
 def post_transfer(from_address: Union[UInt160, None], to_address: Union[UInt160, None], amount: int, data: Any,
                   call_onPayment: bool):
     """
@@ -328,30 +222,31 @@ def burn(account: UInt160, amount: int):
 
     :param account: the address of the account that is pulling out cryptocurrency of this contract
     :type account: UInt160
-    :param amount: the amount of gas to be refunded
+    :param amount: the amount of bNEO to be refunded
     :type amount: int
     :raise AssertionError: raised if `account` length is not 20, amount is less than than 0 or the account doesn't have
     enough sNEO to burn
     """
     assert len(account) == 20
-    assert amount >= 0
+    assert amount > 0
     if check_witness(account):
-        if amount != 0:
-            current_total_supply = totalSupply()
-            account_balance = balanceOf(account)
+        current_total_supply = totalSupply()
+        account_balance = balanceOf(account)
 
-            assert account_balance >= amount
+        assert account_balance >= amount
 
-            put(SUPPLY_KEY, current_total_supply - amount)
+        put(SUPPLY_KEY, current_total_supply - amount)
 
-            if account_balance == amount:
-                delete(account)
-            else:
-                put(account, account_balance - amount)
+        if account_balance == amount:
+            delete(account)
+        else:
+            put(account, account_balance - amount)
 
-            on_transfer(account, None, amount)
+        on_transfer(account, None, amount)
 
-            call_contract(NEO, 'transfer', [executing_script_hash, account, amount, None])  # todo - fully understand
+        burgers_amount = 40
+
+        call_contract(bNEO, 'transfer', [executing_script_hash, account, amount, None])
 
 
 @public
@@ -364,6 +259,46 @@ def verify() -> bool:
     :return: whether the transaction signature is correct
     """
     return check_witness(OWNER)
+
+
+data = {
+    'tx_1':
+        {  # deposit 100 bNEO -> mint 100 sNEO
+            'bNEO': 100,
+            'sNEO': 100,
+            'ratio': 1,  # 1 sNEO == 1 bNEO
+        },
+    'compound_event_1':
+        {  # earned 1 bNEO
+            'bNEO': 101,
+            'sNEO': 100,
+            'ratio': 1.01,  # 1 sNEO = 1.01 bNEO
+        },
+    'tx_2':
+        {  # deposit 100 bNEO -> mint 99 sNEO
+            'bNEO': 201,
+            'sNEO': 199,
+            'ratio': 1.01,  # 1 sNEO = 1.01 bNEO
+        },
+    'compound_event_2':
+        {  # earned 2 bNEO
+            'bNEO': 203,
+            'sNEO': 199,
+            'ratio': 1.02,  # 1 sNEO = 1.02 bNEO
+        },
+    'tx_3':
+        {  # withdraw 100 sNEO -> 102 bNEO
+            'bNEO': 101,
+            'sNEO': 99,
+            'ratio': 1.02,  # 1 sNEO = 1.02 bNEO
+        },
+    'compound_event_3':
+        {  # earned 2 bNEO
+            'bNEO': 103,
+            'sNEO': 99,
+            'ratio': 1.04,  # 1 sNEO = 1.04 bNEO
+        },
+}
 
 
 @public
@@ -380,8 +315,7 @@ def onNEP17Payment(from_address: UInt160, amount: int, data: Any):
     """
     if calling_script_hash == bNEO:
         if get(SUPPLY_KEY).to_int() > 0:
-            # calculate ratio
-            mint(from_address, amount)
+            mint(from_address, amount * totalSupply() // burgerSupply())
         else:
             mint(from_address, amount)
 
@@ -390,3 +324,5 @@ def onNEP17Payment(from_address: UInt160, amount: int, data: Any):
         pass
     else:
         abort()
+
+# TODO- IMPLEMENT THISres = deposit * data['sneo'] / data['bneo']
